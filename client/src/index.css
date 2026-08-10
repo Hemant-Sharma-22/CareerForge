@@ -1,0 +1,68 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #171717; /* ChatGPT Neutral Dark Slate */
+    color: #ececf1;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+    letter-spacing: -0.025em;
+  }
+
+  select option {
+    background-color: #262626;
+    color: #f5f5f5;
+    padding: 8px;
+  }
+}
+
+.font-heading {
+  font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+}
+
+/* ChatGPT Minimalist Human SaaS Grey Card System */
+.glass-panel {
+  background-color: #212121;
+  border: 1px solid #333333;
+}
+
+.glass-card {
+  background-color: #1a1a1a;
+  border: 1px solid #2e2e2e;
+}
+
+.gradient-text {
+  color: #f4f4f5;
+  font-weight: 700;
+}
+
+.btn-primary {
+  @apply bg-zinc-100 hover:bg-white text-zinc-900 font-semibold px-4 py-2 rounded-xl transition-all inline-flex items-center gap-2 justify-center cursor-pointer shadow-sm text-xs;
+}
+
+.btn-secondary {
+  @apply bg-zinc-800 hover:bg-zinc-700 text-zinc-200 font-semibold px-4 py-2 rounded-xl border border-zinc-700 transition-all inline-flex items-center gap-2 justify-center cursor-pointer text-xs;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #171717;
+}
+::-webkit-scrollbar-thumb {
+  background: #333333;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #444444;
+}

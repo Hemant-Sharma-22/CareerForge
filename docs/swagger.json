@@ -1,0 +1,149 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "CareerForge AI Career & ATS Platform API",
+    "version": "1.0.0",
+    "description": "Production REST API for CareerForge - Intelligent ATS Resume Analysis, Groq AI Optimization, Multi-Source Job Matching, and Application Tracking."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000/api",
+      "description": "Local Development Server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "summary": "Register new candidate user",
+        "tags": ["Authentication"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "email", "password"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "email": { "type": "string" },
+                  "password": { "type": "string" },
+                  "title": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "User created successfully" }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Authenticate user & issue JWT",
+        "tags": ["Authentication"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "JWT authentication token returned" }
+        }
+      }
+    },
+    "/resumes/upload": {
+      "post": {
+        "summary": "Upload and parse candidate PDF/DOCX resume",
+        "tags": ["Resume Management"],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "resume": { "type": "string", "format": "binary" },
+                  "title": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Parsed resume object and v1 version created" }
+        }
+      }
+    },
+    "/analysis": {
+      "post": {
+        "summary": "Run explainable ATS rule-based analysis",
+        "tags": ["ATS Analysis"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["resumeId"],
+                "properties": {
+                  "resumeId": { "type": "string" },
+                  "jobDescriptionId": { "type": "string" },
+                  "jobDescriptionText": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Full ATS score breakdown & skill gap analysis" }
+        }
+      }
+    },
+    "/jobs/search": {
+      "post": {
+        "summary": "Multi-source job discovery & match scoring",
+        "tags": ["Job Discovery"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "query": { "type": "string" },
+                  "remoteType": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Normalized job listings with match scores" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,169 @@
+// Prisma Schema for CareerForge - AI Career & ATS Platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  passwordHash String
+  name         String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  profile      UserProfile?
+  resumes      Resume[]
+  jobDescs     JobDescription[]
+  analyses     AtsAnalysis[]
+  savedJobs    SavedJob[]
+  applications JobApplication[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  phone              String?
+  location           String?
+  title              String?
+  experienceLevel    String?  // Entry, Mid, Senior, Lead
+  preferredRoles     String?  // JSON array string
+  preferredLocations String?  // JSON array string
+  remotePreference   String?  // Remote, Hybrid, On-site, Any
+  skills             String?  // JSON array string
+  technologies       String?  // JSON array string
+  bio                String?
+  updatedAt          DateTime @updatedAt
+
+  @@map("user_profiles")
+}
+
+model Resume {
+  id               String          @id @default(uuid())
+  userId           String
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title            String
+  isDefault        Boolean         @default(false)
+  originalFileName String
+  fileUrl          String?
+  rawText          String?
+  parsedData       String          // JSON string storing normalized sections
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  versions         ResumeVersion[]
+  analyses         AtsAnalysis[]
+
+  @@map("resumes")
+}
+
+model ResumeVersion {
+  id            String   @id @default(uuid())
+  resumeId      String
+  resume        Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  versionNumber Int
+  label         String
+  targetRole    String?
+  content       String   // JSON string of formatted content
+  atsScore      Float?
+  createdAt     DateTime @default(now())
+
+  @@map("resume_versions")
+}
+
+model JobDescription {
+  id            String        @id @default(uuid())
+  userId        String
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String
+  company       String?
+  originalText  String
+  extractedData String        // JSON string of skills, requirements, keywords
+  createdAt     DateTime      @default(now())
+  analyses      AtsAnalysis[]
+
+  @@map("job_descriptions")
+}
+
+model AtsAnalysis {
+  id                   String         @id @default(uuid())
+  userId               String
+  user                 User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resumeId             String
+  resume               Resume         @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  jobDescriptionId     String
+  jobDescription       JobDescription @relation(fields: [jobDescriptionId], references: [id], onDelete: Cascade)
+  score                Float
+  skillMatchScore      Float
+  keywordMatchScore    Float
+  experienceMatchScore Float
+  educationMatchScore  Float
+  completenessScore    Float
+  formattingScore      Float
+  matchedSkills        String         // JSON array
+  missingSkills        String         // JSON array
+  missingKeywords      String         // JSON array
+  weakAreas            String         // JSON array of objects
+  recommendations      String         // JSON array of strings
+  createdAt            DateTime       @default(now())
+
+  @@map("ats_analyses")
+}
+
+model JobListing {
+  id             String           @id @default(uuid())
+  externalId     String           @unique
+  title          String
+  company        String
+  location       String
+  description    String
+  skills         String           // JSON array
+  experience     String?
+  employmentType String?          // Full-time, Part-time, Contract, Internship
+  remoteType     String?          // Remote, Hybrid, On-site
+  salary         String?
+  source         String
+  sourceUrl      String
+  postedAt       DateTime         @default(now())
+  applicationUrl String
+  savedBy        SavedJob[]
+  applications   JobApplication[]
+
+  @@map("job_listings")
+}
+
+model SavedJob {
+  id        String     @id @default(uuid())
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       JobListing @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  savedAt   DateTime   @default(now())
+
+  @@unique([userId, jobId])
+  @@map("saved_jobs")
+}
+
+model JobApplication {
+  id             String      @id @default(uuid())
+  userId         String
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId          String?
+  job            JobListing? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  company        String
+  title          String
+  status         String      // Saved, Applied, Assessment, Interview, Rejected, Offer, Withdrawn
+  appliedAt      DateTime?
+  notes          String?
+  applicationUrl String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@map("job_applications")
+}
