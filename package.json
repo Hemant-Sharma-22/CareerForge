@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "start": "node server/src/server.js",
-    "build": "npm run build --workspace=client && npx prisma generate --schema=prisma/schema.prisma",
+    "build": "npx vite build client && npx prisma generate --schema=prisma/schema.prisma",
     "server": "node server/src/server.js",
     "client": "vite client",
     "dev:server": "node --watch server/src/server.js",

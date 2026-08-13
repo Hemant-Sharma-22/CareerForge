@@ -62,37 +62,42 @@ export default function GoogleAuthButton({ label = 'Continue with Google', title
   };
 
   useEffect(() => {
-    if (hasValidClientId && window.google?.accounts?.id && googleBtnRef.current) {
-      try {
-        window.google.accounts.id.initialize({
-          client_id: rawClientId,
-          callback: handleCredentialResponse,
-          auto_select: false
-        });
+    const initGoogleGsi = () => {
+      if (hasValidClientId && window.google?.accounts?.id && googleBtnRef.current) {
+        try {
+          window.google.accounts.id.initialize({
+            client_id: rawClientId,
+            callback: handleCredentialResponse,
+            auto_select: false
+          });
 
-        window.google.accounts.id.renderButton(googleBtnRef.current, {
-          theme: 'filled_black',
-          size: 'large',
-          type: 'standard',
-          text: 'continue_with',
-          shape: 'rectangular',
-          width: 320
-        });
-
-        window.google.accounts.id.prompt();
-      } catch (err) {
-        console.warn('GSI render error:', err.message);
+          googleBtnRef.current.innerHTML = '';
+          window.google.accounts.id.renderButton(googleBtnRef.current, {
+            theme: 'filled_black',
+            size: 'large',
+            type: 'standard',
+            text: 'continue_with',
+            shape: 'rectangular',
+            width: 320
+          });
+        } catch (err) {
+          console.warn('GSI render error:', err.message);
+        }
       }
+    };
+
+    if (window.google?.accounts?.id) {
+      initGoogleGsi();
+    } else {
+      const interval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          clearInterval(interval);
+          initGoogleGsi();
+        }
+      }, 300);
+      return () => clearInterval(interval);
     }
   }, [hasValidClientId, rawClientId]);
-
-  const handleGoogleBtnClick = () => {
-    if (hasValidClientId && window.google?.accounts?.id) {
-      window.google.accounts.id.prompt();
-    } else {
-      setShowAccountModal(true);
-    }
-  };
 
   const handleModalSubmit = async (e) => {
     e.preventDefault();

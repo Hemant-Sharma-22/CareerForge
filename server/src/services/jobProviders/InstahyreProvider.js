@@ -36,12 +36,16 @@ class InstahyreProvider extends BaseJobProvider {
       ? raw.skills.map(s => typeof s === 'string' ? s : s.name)
       : ['Java', 'React', 'Node.js', 'Python', 'SQL'];
 
+    const formattedLocation = raw.location 
+      ? raw.location 
+      : (Array.isArray(raw.locations) ? raw.locations.join(', ') : (typeof raw.locations === 'string' ? raw.locations : 'Bangalore / Remote'));
+
     return {
       id: `instahyre_${raw.id || Math.random().toString(36).substr(2, 6)}`,
       externalId: `instahyre_${raw.id || Math.random().toString(36).substr(2, 6)}`,
       title: raw.title || raw.designation || 'Software Development Engineer',
       company: raw.company_name || raw.company?.name || 'Top Indian Tech Employer',
-      location: raw.location || raw.locations?.join(', ') || 'Bangalore / Remote',
+      location: formattedLocation,
       description: raw.description ? raw.description.replace(/<[^>]*>?/gm, '').substring(0, 280) + '...' : 'Premium tech role verified on Instahyre.',
       skills,
       experience: raw.experience || '1-4 Yrs',
