@@ -22,6 +22,156 @@ if (apiKey && apiKey !== 'gsk_your_groq_api_key_here') {
 }
 
 /**
+ * Extracts structured skills, technologies, and keywords directly from Job Description (JD) text using Groq LLM.
+ */
+const extractJdKeywordsAndSkills = async (jdText) => {
+  if (!jdText || jdText.trim().length === 0) {
+    return {
+      title: 'Target Job Role',
+      requiredSkills: ['JavaScript', 'React', 'Node.js', 'SQL'],
+      preferredSkills: ['TypeScript', 'Docker', 'AWS'],
+      keywords: ['REST API', 'Scalability', 'Microservices', 'Git'],
+      experienceRequirements: '1+ years',
+      educationRequirements: 'Bachelor Degree'
+    };
+  }
+
+  const modelName = apiKey && apiKey.startsWith('xai-') ? 'grok-beta' : 'llama-3.3-70b-versatile';
+
+  if (groqClient) {
+    try {
+      const prompt = `You are an expert ATS recruiter. Analyze the following Job Description (JD) and extract key requirements.
+Job Description:
+"""
+${jdText.substring(0, 4000)}
+"""
+
+Return ONLY a JSON object with keys:
+{
+  "title": "Extracted Job Title or Role Name",
+  "company": "Company Name if mentioned",
+  "requiredSkills": ["array of exact technical skills & tools required"],
+  "preferredSkills": ["array of nice-to-have or bonus skills"],
+  "keywords": ["array of key domain terms, methodologies, or concepts in the JD"],
+  "experienceRequirements": "experience years string (e.g. 2+ years)",
+  "educationRequirements": "degree requirements string"
+}`;
+
+      const response = await groqClient.chat.completions.create({
+        messages: [{ role: 'user', content: prompt }],
+        model: modelName,
+        temperature: 0.1,
+        response_format: { type: 'json_object' }
+      });
+
+      const parsed = JSON.parse(response.choices[0].message.content);
+      return {
+        title: parsed.title || 'Target Job Role',
+        company: parsed.company || 'Employer',
+        requiredSkills: parsed.requiredSkills || [],
+        preferredSkills: parsed.preferredSkills || [],
+        keywords: parsed.keywords || [],
+        experienceRequirements: parsed.experienceRequirements || '1+ years',
+        educationRequirements: parsed.educationRequirements || 'Degree'
+      };
+    } catch (err) {
+      console.warn('Groq JD extraction fallback:', err.message);
+    }
+  }
+
+  // Text Parsing Fallback if Groq is unconfigured
+  return fallbackJdExtractor(jdText);
+};
+
+/**
+ * Compares exact Resume text against exact Job Description text using Groq LLM to find missing keywords.
+ */
+const analyzeResumeAgainstJd = async (resumeText, jdText) => {
+  const modelName = apiKey && apiKey.startsWith('xai-') ? 'grok-beta' : 'llama-3.3-70b-versatile';
+
+  if (groqClient && resumeText && jdText) {
+    try {
+      const prompt = `You are an executive ATS analyzer. Compare the Candidate's Resume against the Target Job Description (JD) to identify exact missing keywords and skill gaps.
+
+CANDIDATE RESUME:
+"""
+${resumeText.substring(0, 4000)}
+"""
+
+TARGET JOB DESCRIPTION:
+"""
+${jdText.substring(0, 4000)}
+"""
+
+Return ONLY a JSON object with keys:
+{
+  "matchedSkills": ["skills explicitly present in both JD and Resume"],
+  "missingSkills": ["important technical skills required in JD but MISSING from Resume"],
+  "matchedKeywords": ["keywords & concepts present in both JD and Resume"],
+  "missingKeywords": ["critical JD keywords/tools MISSING from Resume"],
+  "weakAreas": [
+    {
+      "section": "Skills or Keywords or Summary",
+      "issue": "description of missing JD requirement",
+      "recommendation": "actionable advice to add the JD term into bullet points",
+      "impact": "High or Medium"
+    }
+  ],
+  "recommendations": ["array of specific bullet points to improve alignment with this exact JD"]
+}`;
+
+      const response = await groqClient.chat.completions.create({
+        messages: [{ role: 'user', content: prompt }],
+        model: modelName,
+        temperature: 0.2,
+        response_format: { type: 'json_object' }
+      });
+
+      return JSON.parse(response.choices[0].message.content);
+    } catch (err) {
+      console.warn('Groq Resume-JD analysis warning:', err.message);
+    }
+  }
+
+  return null;
+};
+
+/**
+ * Text parsing fallback for JD extraction
+ */
+const fallbackJdExtractor = (jdText) => {
+  const commonTech = [
+    'React', 'Node.js', 'JavaScript', 'TypeScript', 'Java', 'Python', 'Spring Boot', 'Django',
+    'PostgreSQL', 'MongoDB', 'MySQL', 'SQL', 'AWS', 'Docker', 'Kubernetes', 'REST API', 'GraphQL',
+    'Kafka', 'Redis', 'Microservices', 'CI/CD', 'Git', 'Agile', 'HTML', 'CSS', 'Tailwind', 'Next.js'
+  ];
+
+  const lowerJd = jdText.toLowerCase();
+  const extractedSkills = commonTech.filter(tech => lowerJd.includes(tech.toLowerCase()));
+
+  // Extract candidate keywords using 4+ char word tokens
+  const words = jdText.match(/\b[A-Za-z]{4,}\b/g) || [];
+  const freq = {};
+  words.forEach(w => {
+    const lw = w.toLowerCase();
+    if (!['with', 'from', 'have', 'that', 'this', 'will', 'your', 'about', 'team', 'work', 'experience', 'using'].includes(lw)) {
+      freq[w] = (freq[w] || 0) + 1;
+    }
+  });
+
+  const keywords = Object.keys(freq).sort((a, b) => freq[b] - freq[a]).slice(0, 10);
+
+  return {
+    title: 'Target Job Description',
+    requiredSkills: extractedSkills.slice(0, 6),
+    preferredSkills: extractedSkills.slice(6),
+    keywords: keywords,
+    experienceRequirements: '1+ years',
+    educationRequirements: 'Bachelor Degree'
+  };
+};
+
+/**
  * Optimizes a resume bullet point using AI API with rule-based fallback.
  */
 const optimizeBulletPoint = async (originalBullet, style = 'ATS optimized', targetKeywords = []) => {
@@ -35,7 +185,6 @@ const optimizeBulletPoint = async (originalBullet, style = 'ATS optimized', targ
     };
   }
 
-  // Choose appropriate model depending on provider key format
   const modelName = apiKey && apiKey.startsWith('xai-') ? 'grok-beta' : 'llama-3.3-70b-versatile';
 
   if (groqClient) {
@@ -75,13 +224,9 @@ RULES:
     }
   }
 
-  // Rule-based Fallback Bullet Optimizer (Guarantees zero-failure operation)
   return fallbackBulletOptimizer(originalBullet, style, targetKeywords);
 };
 
-/**
- * Rule-based Bullet Optimizer Fallback
- */
 const fallbackBulletOptimizer = (originalBullet, style, targetKeywords) => {
   let improved = originalBullet.trim();
   const keywordsAdded = [];
@@ -126,9 +271,6 @@ const fallbackBulletOptimizer = (originalBullet, style, targetKeywords) => {
   };
 };
 
-/**
- * Generates an ATS-Optimized Resume content object.
- */
 const generateOptimizedResume = async (resumeData, jdData, missingKeywords = []) => {
   const parsedResume = typeof resumeData.parsedData === 'string'
     ? JSON.parse(resumeData.parsedData)
@@ -169,7 +311,6 @@ Return ONLY JSON with structure:
     }
   }
 
-  // Rule-based Fallback Resume Generator
   const optimizedSummary = `${parsedResume.summary || 'Results-driven software developer'} Experienced in building scalable web applications with expertise in ${parsedResume.skills.slice(0, 4).join(', ')}. Target role aligned for ${parsedJd.title || 'Software Development'}.`;
 
   const updatedSkills = Array.from(new Set([
@@ -198,6 +339,8 @@ Return ONLY JSON with structure:
 };
 
 module.exports = {
+  extractJdKeywordsAndSkills,
+  analyzeResumeAgainstJd,
   optimizeBulletPoint,
   generateOptimizedResume
 };

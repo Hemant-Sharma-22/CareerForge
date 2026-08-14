@@ -1,6 +1,6 @@
 const { prisma, inMemoryStore } = require('../config/prisma');
 const { calculateAtsScore } = require('../services/atsScoringEngine');
-const { optimizeBulletPoint, generateOptimizedResume } = require('../services/groqService');
+const { optimizeBulletPoint, generateOptimizedResume, extractJdKeywordsAndSkills, analyzeResumeAgainstJd } = require('../services/groqService');
 
 const runAnalysis = async (req, res, next) => {
   try {
@@ -35,19 +35,16 @@ const runAnalysis = async (req, res, next) => {
       }
     }
 
+    // Dynamic JD extraction using Groq AI when text is pasted/uploaded directly
     if (!jd && jobDescriptionText) {
+      const extractedJd = await extractJdKeywordsAndSkills(jobDescriptionText);
       jd = {
         id: `jd_temp_${Date.now()}`,
         userId,
-        title: 'Target Job Description',
+        title: extractedJd.title || 'Target Job Description',
+        company: extractedJd.company || 'Target Employer',
         originalText: jobDescriptionText,
-        extractedData: JSON.stringify({
-          requiredSkills: ['JavaScript', 'React', 'Node.js', 'REST API', 'SQL'],
-          preferredSkills: ['Spring Boot', 'Docker', 'AWS', 'Microservices'],
-          keywords: ['REST API', 'Scalability', 'Microservices', 'Authentication', 'Validation'],
-          experienceRequirements: '2+ years',
-          educationRequirements: 'Bachelor\'s Degree in CS'
-        })
+        extractedData: JSON.stringify(extractedJd)
       };
     }
 
@@ -58,7 +55,35 @@ const runAnalysis = async (req, res, next) => {
       });
     }
 
-    const analysisResult = calculateAtsScore(resume, jd, customWeights);
+    // Calculate base explainable rule-based ATS score
+    let analysisResult = calculateAtsScore(resume, jd, customWeights);
+
+    // Deep Groq AI comparison between Candidate Resume and Target Job Description
+    const resumeText = resume.rawText || JSON.stringify(resume.parsedData);
+    const jdText = jd.originalText || JSON.stringify(jd.extractedData);
+    const aiAnalysis = await analyzeResumeAgainstJd(resumeText, jdText);
+
+    if (aiAnalysis) {
+      // Overwrite with exact Groq AI missing keywords & skills extracted from target JD
+      if (aiAnalysis.missingSkills && aiAnalysis.missingSkills.length > 0) {
+        analysisResult.missingSkills = aiAnalysis.missingSkills;
+      }
+      if (aiAnalysis.matchedSkills && aiAnalysis.matchedSkills.length > 0) {
+        analysisResult.matchedSkills = aiAnalysis.matchedSkills;
+      }
+      if (aiAnalysis.missingKeywords && aiAnalysis.missingKeywords.length > 0) {
+        analysisResult.missingKeywords = aiAnalysis.missingKeywords;
+      }
+      if (aiAnalysis.matchedKeywords && aiAnalysis.matchedKeywords.length > 0) {
+        analysisResult.matchedKeywords = aiAnalysis.matchedKeywords;
+      }
+      if (aiAnalysis.weakAreas && aiAnalysis.weakAreas.length > 0) {
+        analysisResult.weakAreas = aiAnalysis.weakAreas;
+      }
+      if (aiAnalysis.recommendations && aiAnalysis.recommendations.length > 0) {
+        analysisResult.recommendations = aiAnalysis.recommendations;
+      }
+    }
 
     const analysisId = `ats_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
     const record = {
