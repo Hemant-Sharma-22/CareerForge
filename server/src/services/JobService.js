@@ -18,17 +18,17 @@ class JobService {
 
     this.jobCache = [];
     this.lastRefreshed = null;
-    this.initDailyRefresh();
+    this.refreshIntervalMs = 48 * 60 * 60 * 1000; // 48 Hours interval per user demand
+    this.init48HourRefresh();
   }
 
-  // Automatic background job feed refresher
-  initDailyRefresh() {
-    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+  // Automatic background job feed refresher every 48 hours
+  init48HourRefresh() {
     this.refreshAllFeeds();
     setInterval(() => {
-      console.log('🔄 Executing automated daily job feed refresh...');
+      console.log('🔄 Executing automated 48-hour job feed refresh...');
       this.refreshAllFeeds();
-    }, TWENTY_FOUR_HOURS);
+    }, this.refreshIntervalMs);
   }
 
   async refreshAllFeeds() {
@@ -50,7 +50,7 @@ class JobService {
 
       this.jobCache = unique;
       this.lastRefreshed = new Date();
-      console.log(`✅ Job refresh complete: Cached ${this.jobCache.length} real jobs across Instahyre, Naukri, Internshala, Remotive, Arbeitnow, Jobicy.`);
+      console.log(`✅ 48-Hour job refresh complete: Cached ${this.jobCache.length} real jobs across Instahyre, Naukri, Internshala, Remotive, Arbeitnow, Jobicy.`);
     } catch (err) {
       console.warn('Job refresh warning:', err.message);
     }
@@ -71,16 +71,20 @@ class JobService {
   async searchAndMatchJobs(userProfile = {}, query = '', filters = {}, forceRefresh = false) {
     let combined = [];
 
+    // Check if cache age exceeds 48 hours (e.g. after server cold start)
+    const isCacheExpired = !this.lastRefreshed || (Date.now() - this.lastRefreshed.getTime() > this.refreshIntervalMs);
+
     const isGenericQuery = !query || query.trim() === '' || query.trim().toLowerCase() === 'developer' || query.trim().toLowerCase() === 'software engineer';
 
-    if (forceRefresh) {
-      // Force instant live refresh across all job providers
+    if (forceRefresh || isCacheExpired) {
       combined = await this.fetchFromProviders(query || 'Software Engineer', filters);
+      this.lastRefreshed = new Date();
     } else if (isGenericQuery) {
       if (this.jobCache.length > 0) {
         combined = [...this.jobCache];
       } else {
         combined = await this.fetchFromProviders(query || 'Software Engineer', filters);
+        this.lastRefreshed = new Date();
       }
     } else {
       // Specific role or skill search -> fetch live directly

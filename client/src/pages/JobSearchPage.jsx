@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import JobCard from '../components/JobCard';
-import { Search, Briefcase, RefreshCw, Bookmark, Clock } from 'lucide-react';
+import { Search, Briefcase, RefreshCw, Bookmark, Clock, ShieldCheck } from 'lucide-react';
 
 export default function JobSearchPage() {
   const [activeTab, setActiveTab] = useState('all'); // 'all' | 'saved'
@@ -28,7 +28,7 @@ export default function JobSearchPage() {
     }
   };
 
-  const handleSearch = async (e, force = true) => {
+  const handleSearch = async (e, force = false) => {
     if (e) e.preventDefault();
 
     try {
@@ -60,16 +60,21 @@ export default function JobSearchPage() {
       {/* Header */}
       <div className="glass-panel p-6 rounded-2xl border border-zinc-800 bg-zinc-900 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold font-heading text-zinc-100 flex items-center gap-2">
-            <Briefcase className="w-6 h-6 text-zinc-300" />
-            Job Discovery & Reminders
-          </h1>
-          <p className="text-xs text-zinc-400 mt-1">
-            Discover real tech opportunities and access your saved job reminders in one place.
+          <div className="flex items-center gap-2 mb-1">
+            <h1 className="text-2xl font-extrabold font-heading text-zinc-100 flex items-center gap-2">
+              <Briefcase className="w-6 h-6 text-zinc-300" />
+              Job Discovery & Reminders
+            </h1>
+            <span className="text-[10px] font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-800/60 px-2 py-0.5 rounded-full flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3" /> Auto-Updates Every 48h
+            </span>
+          </div>
+          <p className="text-xs text-zinc-400">
+            Real tech opportunities aggregated live across 6 platforms. Automatically updates job feeds every 48 hours.
           </p>
         </div>
 
-        {/* View Switcher Tabs & Force Refresh */}
+        {/* View Switcher Tabs */}
         <div className="flex items-center gap-3">
           <div className="flex bg-zinc-800 p-1 rounded-xl border border-zinc-700 text-xs font-semibold shrink-0">
             <button
