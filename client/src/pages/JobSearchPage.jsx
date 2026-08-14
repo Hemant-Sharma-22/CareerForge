@@ -13,7 +13,7 @@ export default function JobSearchPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    handleSearch();
+    handleSearch(null, false);
     fetchSavedJobs();
   }, []);
 
@@ -28,7 +28,7 @@ export default function JobSearchPage() {
     }
   };
 
-  const handleSearch = async (e) => {
+  const handleSearch = async (e, force = true) => {
     if (e) e.preventDefault();
 
     try {
@@ -36,7 +36,8 @@ export default function JobSearchPage() {
       const res = await api.post('/jobs/search', {
         query,
         remoteType,
-        sortBy
+        sortBy,
+        forceRefresh: force
       });
 
       if (res.success) {
@@ -50,7 +51,7 @@ export default function JobSearchPage() {
   };
 
   const handleRefreshAll = () => {
-    handleSearch();
+    handleSearch(null, true);
     fetchSavedJobs();
   };
 
@@ -68,31 +69,33 @@ export default function JobSearchPage() {
           </p>
         </div>
 
-        {/* View Switcher Tabs */}
-        <div className="flex bg-zinc-800 p-1 rounded-xl border border-zinc-700 text-xs font-semibold shrink-0">
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'all'
-                ? 'bg-zinc-700 text-white shadow-sm font-semibold'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <Search className="w-3.5 h-3.5" />
-            Search All ({jobs.length})
-          </button>
-          
-          <button
-            onClick={() => { setActiveTab('saved'); fetchSavedJobs(); }}
-            className={`px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
-              activeTab === 'saved'
-                ? 'bg-zinc-700 text-white shadow-sm font-semibold'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            <Bookmark className="w-3.5 h-3.5 text-amber-400" />
-            Bookmarked Reminders ({savedJobsList.length})
-          </button>
+        {/* View Switcher Tabs & Force Refresh */}
+        <div className="flex items-center gap-3">
+          <div className="flex bg-zinc-800 p-1 rounded-xl border border-zinc-700 text-xs font-semibold shrink-0">
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === 'all'
+                  ? 'bg-zinc-700 text-white shadow-sm font-semibold'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              <Search className="w-3.5 h-3.5" />
+              Search All ({jobs.length})
+            </button>
+            
+            <button
+              onClick={() => { setActiveTab('saved'); fetchSavedJobs(); }}
+              className={`px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === 'saved'
+                  ? 'bg-zinc-700 text-white shadow-sm font-semibold'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              <Bookmark className="w-3.5 h-3.5 text-amber-400" />
+              Bookmarked Reminders ({savedJobsList.length})
+            </button>
+          </div>
         </div>
       </div>
 
@@ -100,7 +103,7 @@ export default function JobSearchPage() {
         <>
           {/* Search Bar & Filters */}
           <div className="glass-panel p-6 rounded-2xl border border-zinc-800 bg-zinc-900 space-y-4">
-            <form onSubmit={handleSearch} className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+            <form onSubmit={(e) => handleSearch(e, true)} className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
               <div className="sm:col-span-2">
                 <label className="block text-xs font-medium text-zinc-300 mb-1">Search Role or Technologies</label>
                 <div className="relative">
@@ -147,16 +150,28 @@ export default function JobSearchPage() {
                 Found {jobs.length} Real Live Opportunities
               </span>
 
-              <div className="flex items-center gap-2 text-xs text-zinc-400">
-                <span>Sort by:</span>
-                <select
-                  value={sortBy}
-                  onChange={(e) => { setSortBy(e.target.value); handleSearch(); }}
-                  className="bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-zinc-200 focus:outline-none cursor-pointer"
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => handleSearch(null, true)}
+                  disabled={loading}
+                  className="text-xs text-zinc-400 hover:text-white flex items-center gap-1.5 bg-zinc-800 border border-zinc-700 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                  title="Force re-fetch live job feeds"
                 >
-                  <option value="match" className="bg-zinc-800 text-zinc-100">Best Profile Match</option>
-                  <option value="newest" className="bg-zinc-800 text-zinc-100">Newest First</option>
-                </select>
+                  <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
+                  Refresh Live Feeds
+                </button>
+
+                <div className="flex items-center gap-2 text-xs text-zinc-400">
+                  <span>Sort by:</span>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => { setSortBy(e.target.value); handleSearch(null, false); }}
+                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-zinc-200 focus:outline-none cursor-pointer"
+                  >
+                    <option value="match" className="bg-zinc-800 text-zinc-100">Best Profile Match</option>
+                    <option value="newest" className="bg-zinc-800 text-zinc-100">Newest First</option>
+                  </select>
+                </div>
               </div>
             </div>
 

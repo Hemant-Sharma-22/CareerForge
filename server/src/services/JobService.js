@@ -21,7 +21,7 @@ class JobService {
     this.initDailyRefresh();
   }
 
-  // Automatic daily background job feed refresher
+  // Automatic background job feed refresher
   initDailyRefresh() {
     const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
     this.refreshAllFeeds();
@@ -33,7 +33,7 @@ class JobService {
 
   async refreshAllFeeds() {
     try {
-      const defaultQueries = ['Software Engineer', 'Full Stack Developer', 'React Developer', 'Java Developer', 'Python Developer'];
+      const defaultQueries = ['Software Engineer', 'Full Stack Developer', 'React Developer', 'Java Developer', 'Python Developer', 'Data Engineer'];
       const fetchTasks = defaultQueries.map(q => this.fetchFromProviders(q));
       const results = await Promise.all(fetchTasks);
       const combined = results.flat();
@@ -50,9 +50,9 @@ class JobService {
 
       this.jobCache = unique;
       this.lastRefreshed = new Date();
-      console.log(`✅ Daily job refresh complete: Cached ${this.jobCache.length} real jobs across Instahyre, Naukri, Internshala, Remotive, Arbeitnow, Jobicy.`);
+      console.log(`✅ Job refresh complete: Cached ${this.jobCache.length} real jobs across Instahyre, Naukri, Internshala, Remotive, Arbeitnow, Jobicy.`);
     } catch (err) {
-      console.warn('Daily job refresh warning:', err.message);
+      console.warn('Job refresh warning:', err.message);
     }
   }
 
@@ -68,16 +68,22 @@ class JobService {
     return resultsArray.flat();
   }
 
-  async searchAndMatchJobs(userProfile = {}, query = '', filters = {}) {
+  async searchAndMatchJobs(userProfile = {}, query = '', filters = {}, forceRefresh = false) {
     let combined = [];
 
-    if (!query || query.trim() === 'developer' || query.trim() === 'Software Engineer') {
+    const isGenericQuery = !query || query.trim() === '' || query.trim().toLowerCase() === 'developer' || query.trim().toLowerCase() === 'software engineer';
+
+    if (forceRefresh) {
+      // Force instant live refresh across all job providers
+      combined = await this.fetchFromProviders(query || 'Software Engineer', filters);
+    } else if (isGenericQuery) {
       if (this.jobCache.length > 0) {
         combined = [...this.jobCache];
       } else {
-        combined = await this.fetchFromProviders(query, filters);
+        combined = await this.fetchFromProviders(query || 'Software Engineer', filters);
       }
     } else {
+      // Specific role or skill search -> fetch live directly
       combined = await this.fetchFromProviders(query, filters);
     }
 
@@ -121,7 +127,7 @@ class JobService {
   }
 
   calculateJobMatchScore(job, candidateSkills, userProfile = {}) {
-    if (!candidateSkills || !candidateSkills.length) return null; // No fake 70% match when no resume/skills uploaded!
+    if (!candidateSkills || !candidateSkills.length) return null; // No fake match score when no resume/skills uploaded!
     if (!job.skills || !job.skills.length) return 50;
 
     const lowerCandidateSkills = candidateSkills.map(s => s.toLowerCase());

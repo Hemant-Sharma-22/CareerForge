@@ -4,7 +4,7 @@ const { prisma, inMemoryStore } = require('../config/prisma');
 const searchJobs = async (req, res, next) => {
   try {
     const userId = req.user ? req.user.id : null;
-    const { query, remoteType, location, experience, sortBy } = req.body;
+    const { query, remoteType, location, experience, sortBy, forceRefresh } = req.body;
 
     let userProfile = {};
     let savedJobIds = [];
@@ -18,7 +18,7 @@ const searchJobs = async (req, res, next) => {
     }
 
     const filters = { remoteType, location, experience, sortBy };
-    const rawJobs = await jobService.searchAndMatchJobs(userProfile, query, filters);
+    const rawJobs = await jobService.searchAndMatchJobs(userProfile, query, filters, forceRefresh);
 
     const jobs = rawJobs.map(job => ({
       ...job,
