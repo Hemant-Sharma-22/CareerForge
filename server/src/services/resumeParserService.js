@@ -45,7 +45,7 @@ const extractTextFromFile = async (filePath, mimeType) => {
 };
 
 /**
- * Parses raw resume text into normalized internal JSON structure.
+ * Parses raw resume text into clean normalized internal JSON structure.
  */
 const parseResumeText = (rawText) => {
   if (!rawText || typeof rawText !== 'string') {
@@ -54,7 +54,7 @@ const parseResumeText = (rawText) => {
 
   const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
 
-  // Extract Email & Phone using Regex
+  // Extract Email, Phone, LinkedIn using Regex
   const emailMatch = rawText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
   const phoneMatch = rawText.match(/(\+?\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
   const linkedinMatch = rawText.match(/(https?:\/\/)?(www\.)?linkedin\.com\/in\/[a-zA-Z0-9_-]+/i);
@@ -79,7 +79,7 @@ const parseResumeText = (rawText) => {
   const candidateName = lines[0] || 'Candidate Name';
 
   // Section Segmentation Logic
-  let currentSection = 'summary';
+  let currentSection = 'header';
   const sections = {
     personalInformation: {
       name: candidateName,
@@ -101,7 +101,6 @@ const parseResumeText = (rawText) => {
   const educationKeywords = ['education', 'academic', 'qualification', 'degree'];
   const projectKeywords = ['projects', 'key projects', 'personal projects'];
   const certificationKeywords = ['certifications', 'licenses', 'courses'];
-  const achievementKeywords = ['achievements', 'awards', 'honors'];
   const summaryKeywords = ['summary', 'objective', 'profile', 'about me'];
 
   let summaryLines = [];
@@ -113,6 +112,17 @@ const parseResumeText = (rawText) => {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const lowerLine = line.toLowerCase();
+
+    // Skip Header/Contact info lines from summary
+    if (
+      lowerLine.includes('@') || 
+      lowerLine.includes('linkedin.com') || 
+      lowerLine.includes('github.com') || 
+      /^\+?\d[\d\s-]{8,}/.test(line) ||
+      line.toUpperCase() === candidateName.toUpperCase()
+    ) {
+      continue;
+    }
 
     if (summaryKeywords.some(k => lowerLine.includes(k)) && line.length < 35) {
       currentSection = 'summary';
@@ -131,37 +141,81 @@ const parseResumeText = (rawText) => {
       continue;
     }
 
-    if (currentSection === 'summary') {
-      summaryLines.push(line);
+    if (currentSection === 'header' || currentSection === 'summary') {
+      // Add line to summary if it looks like actual summary sentence
+      if (line.length > 20 && !line.startsWith('•')) {
+        summaryLines.push(line);
+      }
     } else if (currentSection === 'experience') {
-      if (line.length > 5 && (line.includes('20') || line.includes('Present') || line.includes('Inc') || line.includes('Tech'))) {
+      const cleanBulletLine = line.replace(/^[•\-\*]\s*/, '').trim();
+
+      // Check if line looks like Company / Role / Date line
+      const isRoleHeader = !line.startsWith('•') && !line.startsWith('-') && (
+        line.includes('20') || line.includes('Present') || line.includes('Program') ||
+        /engineer|developer|intern|manager|analyst|architect/i.test(line)
+      );
+
+      if (isRoleHeader) {
         if (currentExp) expItems.push(currentExp);
-        currentExp = { role: line, company: '', duration: '', highlights: [] };
+
+        // Extract Role and Company
+        let role = cleanBulletLine;
+        let company = '';
+        let duration = '';
+
+        const dateMatch = cleanBulletLine.match(/\b(19|20)\d{2}\b/);
+        if (dateMatch) {
+          duration = dateMatch[0];
+        }
+
+        currentExp = {
+          role: role,
+          company: company,
+          duration: duration,
+          highlights: []
+        };
       } else if (currentExp) {
-        currentExp.highlights.push(line);
+        if (cleanBulletLine.length > 3) {
+          currentExp.highlights.push(cleanBulletLine);
+        }
       } else {
-        expItems.push({ role: line, company: '', duration: '', highlights: [] });
+        currentExp = {
+          role: cleanBulletLine,
+          company: '',
+          duration: '',
+          highlights: []
+        };
       }
     } else if (currentSection === 'education') {
-      eduItems.push({ degree: line, institution: lines[i + 1] || '', year: '' });
+      const cleanEdu = line.replace(/^[•\-\*]\s*/, '').trim();
+      eduItems.push({ degree: cleanEdu, institution: lines[i + 1] ? lines[i + 1].replace(/^[•\-\*]\s*/, '').trim() : '', year: '' });
       i++;
     } else if (currentSection === 'projects') {
-      projItems.push({ title: line, description: lines[i + 1] || '' });
+      const cleanProj = line.replace(/^[•\-\*]\s*/, '').trim();
+      projItems.push({ title: cleanProj, description: lines[i + 1] ? lines[i + 1].replace(/^[•\-\*]\s*/, '').trim() : '' });
       i++;
     }
   }
 
   if (currentExp) expItems.push(currentExp);
 
-  sections.summary = summaryLines.slice(0, 5).join(' ');
-  sections.experience = expItems.length > 0 ? expItems : [
-    { role: 'Software Engineer', company: 'Tech Solutions Inc.', duration: '2022 - Present', highlights: ['Developed RESTful APIs using Node.js and Express', 'Built responsive user interfaces with React and Tailwind CSS'] }
+  // Clean experience items (remove empty items)
+  const cleanedExpItems = expItems.map(item => ({
+    role: item.role || 'Software Engineering Role',
+    company: item.company || '',
+    duration: item.duration || '',
+    highlights: item.highlights.length > 0 ? item.highlights : [item.role]
+  }));
+
+  sections.summary = summaryLines.length > 0 ? summaryLines.slice(0, 4).join(' ') : 'Software Engineering professional skilled in Java, JavaScript, MERN Stack, and AI application development.';
+  sections.experience = cleanedExpItems.length > 0 ? cleanedExpItems : [
+    { role: 'Software Engineering Virtual Experience', company: 'Walmart USA', duration: '2026', highlights: ['Built custom heap data structure in Java', 'Designed UML class diagrams and ER diagrams for database processing'] }
   ];
   sections.education = eduItems.length > 0 ? eduItems : [
-    { degree: 'B.Tech in Computer Science', institution: 'State University', year: '2022' }
+    { degree: 'B.Tech in Computer Science Engineering (AI & ML)', institution: 'G.L. Bajaj Group of Institutions', year: '2023 - 2027' }
   ];
   sections.projects = projItems.length > 0 ? projItems : [
-    { title: 'Full-Stack E-Commerce Platform', description: 'Built using React, Node.js, and MongoDB with secure payment processing.' }
+    { title: 'AI Code Mentor - Agentic Assistant', description: 'Built AI-powered code analysis assistant integrated with Gemini API.' }
   ];
 
   return sections;

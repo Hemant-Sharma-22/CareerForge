@@ -13,7 +13,10 @@ import {
   Briefcase,
   Code,
   GraduationCap,
-  FolderGit2
+  FolderGit2,
+  Upload,
+  FileUp,
+  Type
 } from 'lucide-react';
 
 export default function ResumeBuilderPage() {
@@ -28,10 +31,16 @@ export default function ResumeBuilderPage() {
   const [resumes, setResumes] = useState([]);
   const [jds, setJds] = useState([]);
   const [selectedResumeId, setSelectedResumeId] = useState('');
+  
+  // JD Input Mode: 'select' | 'paste' | 'file'
+  const [jdInputMode, setJdInputMode] = useState('paste');
   const [selectedJdId, setSelectedJdId] = useState('');
+  const [pastedJdText, setPastedJdText] = useState('');
+  const [jdFile, setJdFile] = useState(null);
+
   const [genLoading, setGenLoading] = useState(false);
   const [generatedVersion, setGeneratedVersion] = useState(null);
-  const [activeSectionTab, setActiveSectionTab] = useState('summary'); // 'summary' | 'skills' | 'experience' | 'projects' | 'education'
+  const [activeSectionTab, setActiveSectionTab] = useState('summary');
   const [copiedSection, setCopiedSection] = useState(null);
 
   useEffect(() => {
@@ -53,6 +62,7 @@ export default function ResumeBuilderPage() {
       if (jdsRes?.success && jdsRes.jobDescriptions.length > 0) {
         setJds(jdsRes.jobDescriptions);
         setSelectedJdId(jdsRes.jobDescriptions[0].id);
+        if (jdsRes.jobDescriptions.length > 0) setJdInputMode('select');
       }
     } catch (err) {
       console.error('Error fetching builder initial data:', err.message);
@@ -84,15 +94,37 @@ export default function ResumeBuilderPage() {
 
   const handleGenerateResume = async (e) => {
     e.preventDefault();
-    if (!selectedResumeId || !selectedJdId) return;
+    if (!selectedResumeId) return;
 
     try {
       setGenLoading(true);
-      const res = await api.post('/analysis/generate-resume', {
+
+      let payload = {
         resumeId: selectedResumeId,
-        jobDescriptionId: selectedJdId,
         versionLabel: 'Tailored ATS Version'
-      });
+      };
+
+      if (jdInputMode === 'file' && jdFile) {
+        // Upload JD file first
+        const formData = new FormData();
+        formData.append('jdFile', jdFile);
+        const uploadRes = await api.post('/job-descriptions', formData);
+        if (uploadRes?.success) {
+          payload.jobDescriptionId = uploadRes.jobDescription.id;
+        } else {
+          throw new Error('JD file upload failed.');
+        }
+      } else if (jdInputMode === 'paste' && pastedJdText.trim()) {
+        payload.jobDescriptionText = pastedJdText;
+      } else if (jdInputMode === 'select' && selectedJdId) {
+        payload.jobDescriptionId = selectedJdId;
+      } else {
+        alert('Please select, paste, or upload a target Job Description (JD).');
+        setGenLoading(false);
+        return;
+      }
+
+      const res = await api.post('/analysis/generate-resume', payload);
 
       if (res.success) {
         setGeneratedVersion(res.version);
@@ -100,6 +132,7 @@ export default function ResumeBuilderPage() {
       }
     } catch (err) {
       console.error('Resume generation error:', err.message);
+      alert(err.message || 'Error generating tailored resume.');
     } finally {
       setGenLoading(false);
     }
@@ -118,7 +151,7 @@ export default function ResumeBuilderPage() {
     if (section === 'summary') return c.summary || '';
     if (section === 'skills') return (c.skills || []).join(', ');
     if (section === 'experience') {
-      return (c.experience || []).map(e => `${e.role || 'Role'} at ${e.company || 'Company'} (${e.duration || ''})\n` + (e.highlights || []).map(h => `• ${h}`).join('\n')).join('\n\n');
+      return (c.experience || []).map(e => `${e.role || 'Role'} ${e.company ? 'at ' + e.company : ''} (${e.duration || ''})\n` + (e.highlights || []).map(h => `• ${h}`).join('\n')).join('\n\n');
     }
     if (section === 'projects') {
       return (c.projects || []).map(p => `${p.title || 'Project'}: ${p.description || ''}`).join('\n\n');
@@ -139,7 +172,7 @@ export default function ResumeBuilderPage() {
           Section-Wise Resume Enhancer & Bullet Optimizer
         </h1>
         <p className="text-xs text-zinc-400 mt-1">
-          Tailor your resume section by section according to target JD keywords and optimize bullet points with action verbs.
+          Tailor your resume section by section according to target JD requirements using AI or file upload.
         </p>
       </div>
 
@@ -151,48 +184,113 @@ export default function ResumeBuilderPage() {
         </h3>
 
         <p className="text-xs text-zinc-400">
-          Select your uploaded resume and target Job Description (JD). Groq AI will analyze JD requirements and update each section (Summary, Skills, Experience, Projects) line-by-line.
+          Select your source resume and insert your target Job Description (via text paste, PDF/DOCX upload, or saved JDs). Groq AI will analyze the JD and update each section line-by-line.
         </p>
 
-        <form onSubmit={handleGenerateResume} className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-          <div>
-            <label className="block text-xs font-semibold text-zinc-300 mb-1">Source Resume</label>
-            <select
-              value={selectedResumeId}
-              onChange={(e) => setSelectedResumeId(e.target.value)}
-              className="w-full bg-zinc-800 border border-zinc-700 focus:border-zinc-500 rounded-xl px-3 py-2.5 text-xs text-zinc-100 focus:outline-none cursor-pointer"
-            >
-              {resumes.length === 0 ? (
-                <option value="" className="bg-zinc-800 text-zinc-300">-- Upload a resume first --</option>
-              ) : (
-                resumes.map(r => (
-                  <option key={r.id} value={r.id} className="bg-zinc-800 text-zinc-100">{r.title}</option>
-                ))
-              )}
-            </select>
+        <form onSubmit={handleGenerateResume} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1">1. Select Source Resume</label>
+              <select
+                value={selectedResumeId}
+                onChange={(e) => setSelectedResumeId(e.target.value)}
+                className="w-full bg-zinc-800 border border-zinc-700 focus:border-zinc-500 rounded-xl px-3 py-2.5 text-xs text-zinc-100 focus:outline-none cursor-pointer"
+              >
+                {resumes.length === 0 ? (
+                  <option value="" className="bg-zinc-800 text-zinc-300">-- Upload a resume first --</option>
+                ) : (
+                  resumes.map(r => (
+                    <option key={r.id} value={r.id} className="bg-zinc-800 text-zinc-100">{r.title}</option>
+                  ))
+                )}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1">2. Target Job Description (JD) Input Mode</label>
+              <div className="flex bg-zinc-800 p-1 rounded-xl border border-zinc-700 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setJdInputMode('paste')}
+                  className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                    jdInputMode === 'paste' ? 'bg-zinc-700 text-white font-bold' : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  <Type className="w-3.5 h-3.5" /> Paste JD Text
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setJdInputMode('file')}
+                  className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                    jdInputMode === 'file' ? 'bg-zinc-700 text-white font-bold' : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  <FileUp className="w-3.5 h-3.5" /> Upload File (PDF/DOCX)
+                </button>
+
+                {jds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setJdInputMode('select')}
+                    className={`flex-1 py-1.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                      jdInputMode === 'select' ? 'bg-zinc-700 text-white font-bold' : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    Saved JDs ({jds.length})
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-zinc-300 mb-1">Target Job Description (JD)</label>
-            <select
-              value={selectedJdId}
-              onChange={(e) => setSelectedJdId(e.target.value)}
-              className="w-full bg-zinc-800 border border-zinc-700 focus:border-zinc-500 rounded-xl px-3 py-2.5 text-xs text-zinc-100 focus:outline-none cursor-pointer"
-            >
-              {jds.length > 0 ? (
-                jds.map(j => <option key={j.id} value={j.id} className="bg-zinc-800 text-zinc-100">{j.title} ({j.company})</option>)
-              ) : (
-                <option value="" className="bg-zinc-800 text-zinc-300">Paste or Save a JD first</option>
-              )}
-            </select>
-          </div>
+          {/* Dynamic JD Input Control */}
+          {jdInputMode === 'paste' && (
+            <div>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1">Paste Target Job Description (JD)</label>
+              <textarea
+                rows={4}
+                required
+                value={pastedJdText}
+                onChange={(e) => setPastedJdText(e.target.value)}
+                placeholder="Paste the target job description requirements, responsibilities, or skills here..."
+                className="w-full bg-zinc-800 border border-zinc-700 focus:border-zinc-500 rounded-xl p-3 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none"
+              />
+            </div>
+          )}
+
+          {jdInputMode === 'file' && (
+            <div>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1">Upload JD File (.pdf, .docx, .txt)</label>
+              <input
+                type="file"
+                accept=".pdf,.docx,.doc,.txt"
+                required
+                onChange={(e) => setJdFile(e.target.files[0])}
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-xl p-2 text-xs text-zinc-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-zinc-700 file:text-zinc-100 cursor-pointer"
+              />
+            </div>
+          )}
+
+          {jdInputMode === 'select' && (
+            <div>
+              <label className="block text-xs font-semibold text-zinc-300 mb-1">Select from Saved Job Descriptions</label>
+              <select
+                value={selectedJdId}
+                onChange={(e) => setSelectedJdId(e.target.value)}
+                className="w-full bg-zinc-800 border border-zinc-700 focus:border-zinc-500 rounded-xl px-3 py-2.5 text-xs text-zinc-100 focus:outline-none cursor-pointer"
+              >
+                {jds.map(j => <option key={j.id} value={j.id} className="bg-zinc-800 text-zinc-100">{j.title} ({j.company})</option>)}
+              </select>
+            </div>
+          )}
 
           <button
             type="submit"
-            disabled={genLoading || !selectedResumeId || !selectedJdId}
-            className="btn-primary py-2.5 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={genLoading || !selectedResumeId}
+            className="btn-primary py-2.5 px-6 text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {genLoading ? 'Tailoring Sections...' : 'Enhance Resume for JD'}
+            {genLoading ? 'Tailoring Sections with Groq AI...' : 'Enhance Resume Section-by-Section'}
             <Sparkles className="w-4 h-4 ml-1" />
           </button>
         </form>
@@ -340,7 +438,7 @@ export default function ResumeBuilderPage() {
                       <div key={idx} className="bg-zinc-800/60 p-4 rounded-xl border border-zinc-800 space-y-2">
                         <div className="flex items-center justify-between">
                           <h4 className="font-bold text-sm text-zinc-100">{exp.role || 'Software Engineer'}</h4>
-                          <span className="text-xs text-zinc-400 font-medium">{exp.company || 'Tech Corp'} • {exp.duration || '2023 - Present'}</span>
+                          <span className="text-xs text-zinc-400 font-medium">{exp.company ? `${exp.company} • ` : ''}{exp.duration || '2026'}</span>
                         </div>
 
                         <ul className="space-y-1.5 pt-1">

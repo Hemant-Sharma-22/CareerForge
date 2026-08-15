@@ -234,23 +234,38 @@ const improveBulletPoint = async (req, res, next) => {
 const generateOptimizedResumeController = async (req, res, next) => {
   try {
     const userId = req.user.id;
-    const { resumeId, jobDescriptionId, versionLabel } = req.body;
+    const { resumeId, jobDescriptionId, jobDescriptionText, versionLabel } = req.body;
 
     let resume = prisma ? await prisma.resume.findFirst({ where: { id: resumeId, userId } }).catch(() => null) : null;
     if (!resume) resume = inMemoryStore.resumes.find(r => r.id === resumeId && r.userId === userId);
 
-    let jd = prisma ? await prisma.jobDescription.findFirst({ where: { id: jobDescriptionId, userId } }).catch(() => null) : null;
-    if (!jd) jd = inMemoryStore.job_descriptions.find(j => j.id === jobDescriptionId && j.userId === userId);
+    let jd = null;
+    if (jobDescriptionId) {
+      jd = prisma ? await prisma.jobDescription.findFirst({ where: { id: jobDescriptionId, userId } }).catch(() => null) : null;
+      if (!jd) jd = inMemoryStore.job_descriptions.find(j => j.id === jobDescriptionId && j.userId === userId);
+    }
+
+    if (!jd && jobDescriptionText) {
+      const extractedJd = await extractJdKeywordsAndSkills(jobDescriptionText);
+      jd = {
+        id: `jd_temp_${Date.now()}`,
+        userId,
+        title: extractedJd.title || 'Target Job Description',
+        company: extractedJd.company || 'Target Employer',
+        originalText: jobDescriptionText,
+        extractedData: JSON.stringify(extractedJd)
+      };
+    }
 
     if (!resume || !jd) {
       return res.status(400).json({
         success: false,
-        message: 'Valid resumeId and jobDescriptionId are required.'
+        message: 'Valid resumeId and Job Description (text or selected JD) are required.'
       });
     }
 
     const parsedJd = typeof jd.extractedData === 'string' ? JSON.parse(jd.extractedData) : jd.extractedData;
-    const missingKeywords = parsedJd.keywords || ['Spring Boot', 'Docker', 'AWS'];
+    const missingKeywords = parsedJd.keywords || parsedJd.requiredSkills || ['Spring Boot', 'Docker', 'AWS'];
 
     const generatedContent = await generateOptimizedResume(resume, jd, missingKeywords);
 
