@@ -58,7 +58,7 @@ const register = async (req, res, next) => {
     if (existingUserPrisma || existingUserMemory) {
       return res.status(400).json({
         success: false,
-        message: 'User with this email address already exists. Please sign in.'
+        message: 'User with this email address already exists. Please sign in or click Forgot Password.'
       });
     }
 
@@ -252,7 +252,7 @@ const login = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email address or password.'
+        message: 'No account found with this email address. Please register a new account.'
       });
     }
 
@@ -260,7 +260,7 @@ const login = async (req, res, next) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email address or password.'
+        message: 'Incorrect password entered. Did you forget your password?'
       });
     }
 
@@ -278,6 +278,63 @@ const login = async (req, res, next) => {
         email: user.email,
         profile: user.profile
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const resetPassword = async (req, res, next) => {
+  try {
+    const { email, newPassword } = req.body;
+
+    if (!email || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Registered email address and new password are required.'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters long.'
+      });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+
+    let userPrisma = prisma ? await prisma.user.findUnique({ where: { email: cleanEmail } }).catch(() => null) : null;
+    let userMemory = inMemoryStore.users.find(u => u.email === cleanEmail);
+
+    if (!userPrisma && !userMemory) {
+      return res.status(404).json({
+        success: false,
+        message: 'No account registered with this email address.'
+      });
+    }
+
+    const newPasswordHash = await bcrypt.hash(newPassword, 10);
+
+    if (prisma && userPrisma) {
+      try {
+        await prisma.user.update({
+          where: { email: cleanEmail },
+          data: { passwordHash: newPasswordHash, updatedAt: new Date() }
+        });
+      } catch (err) {
+        console.warn('Prisma reset password fallback:', err.message);
+      }
+    }
+
+    if (userMemory) {
+      userMemory.passwordHash = newPasswordHash;
+      userMemory.updatedAt = new Date();
+    }
+
+    res.json({
+      success: true,
+      message: 'Password updated successfully! You can now sign in with your new password.'
     });
   } catch (error) {
     next(error);
@@ -322,5 +379,6 @@ module.exports = {
   register,
   googleAuth,
   login,
+  resetPassword,
   getMe
 };

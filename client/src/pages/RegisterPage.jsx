@@ -77,8 +77,15 @@ export default function RegisterPage() {
         </div>
 
         {error && (
-          <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-xl font-medium text-center">
-            {error}
+          <div className="p-3 bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs rounded-xl font-medium text-center space-y-1">
+            <div>{error}</div>
+            {error.includes('already exists') && (
+              <div>
+                <Link to="/login" className="text-sky-400 font-bold underline hover:text-sky-300">
+                  Sign In to your account
+                </Link>
+              </div>
+            )}
           </div>
         )}
 
